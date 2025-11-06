@@ -1,0 +1,147 @@
+---
+title: "Data Analytics GBIF Practice"
+author: "C.S. Stratton"
+date: "`r Sys.Date()`"
+output: 
+  html_document:
+    toc: TRUE
+    toc_float: TRUE
+    toc_depth: 3
+  base_font:
+        google: "Arial"
+---
+<style type="text/css">
+
+body{ /* Normal  */
+      font-size: 16px;
+      text-align: justified;
+}
+
+
+h1 { /* Header 1 */
+  font-size: 42px;
+  color: darkblue;
+  text-decoration: underline;
+  }
+
+h2 { /* Header 2 */
+  font-size: 30px;
+  color: orangered;
+  }
+
+
+h3 { /* Header 2 */
+  font-size: 24px;
+  color: Black;
+  }
+  
+</style>
+---
+
+```{r setup, include=FALSE}
+
+pacman::p_load("cowplot","dismo","leaflet","geodata","OpenStreetMap","raster","rasterVis","rdryad","rgbif","sf","tidyverse")
+library(maps)
+library(sf)
+library(RColorBrewer)
+library(leaflet.extras)
+
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+```
+
+## GBIF
+
+<center>
+
+
+![](images/gbif_quolls.png)  
+
+## The blotched blue-tongue skink (<i>Tiliqua nigrolutea</i>)
+
+![](images/bluetongues.jpeg)
+
+
+![](images/blobluto.jpeg)  
+
+![](images/blobluto2.jpeg)  
+</center>
+
+## Blobluto Model
+
+```{r species data}
+
+rgbif_blobluto <- occ_search(scientificName = "Tiliqua nigrolutea",
+                       hasCoordinate = TRUE, limit = 5500,
+                       decimalLongitude = "130, 160", 
+                       decimalLatitude = "-45, -25")
+
+df_rgbif_blobluto <- cbind.data.frame(rgbif_blobluto$data$species,
+                                  rgbif_blobluto$data$decimalLatitude,
+                                  rgbif_blobluto$data$decimalLongitude,
+                                  rgbif_blobluto$data$stateProvince,
+                                  rgbif_blobluto$data$year,
+                                  rgbif_blobluto$data$eventDate)
+
+
+
+colnames(df_rgbif_blobluto) <- c("species","y","x","state", "rec_year", "date")
+
+df_rgbif_blobluto <- df_rgbif_blobluto %>%
+  dplyr::filter(rec_year != "N/A") %>%
+  dplyr::filter(rec_year != "1599")
+
+#df_rgbif_blobluto$date <- substr(df_rgbif_blobluto$date, 1, 10)
+#df_rgbif_blobluto$date <- ymd(df_rgbif_blobluto$date)
+#df_rgbif_blobluto$juldate <- yday(df_rgbif_blobluto$date)
+
+
+```
+
+```{r climate data}
+
+bioclim <- geodata::worldclim_global(var = "bio", res = 2.5, version = "2.1")
+
+names(bioclim) <- c("Ann Mean Temp","Mean Diurnal Range","Isothermality","Temperature Seasonality",
+                    "Max Temp Warmest Mo","Min Temp Coldest Mo","Ann Temp Range","Mean Temp Wettest Qtr",
+                    "Mean Temp Driest Qtr","Mean Temp Warmest Qtr","Mean Temp Coldest Qtr","Annual
+                    Precip","Precip Wettest Mo","Precip Driest Mo","Precip Seasonality","Precip Wettest
+                    Qtr","Precip Driest Qtr","Precip Warmest Qtr","Precip Coldest Qtr")
+
+bio.extent <- extent(x = c(110, 160, -45, -10))
+bioclim.extent <- crop(x = bioclim, y = bio.extent)
+bioclim.raster <- brick(bioclim.extent)
+
+
+bioclim.model <- bioclim(x = bioclim.raster, p = cbind(df_rgbif_blobluto$x, df_rgbif_blobluto$y))
+presence.model <- dismo::predict(object = bioclim.model, 
+                                 x = bioclim.raster, 
+                                 ext = bio.extent)
+```
+
+```{r leaflet}
+colors <- c("brown","yellow","darkgreen")
+
+pal <- colorNumeric(palette = c("#00cccc","#000ecc","#7e00cc"), domain = df_rgbif_blobluto$rec_year)
+
+df_rgbif_blobluto_points <- df_rgbif_blobluto %>%
+  st_as_sf(coords = c("x", "y"), crs = 4326)
+
+
+leaflet() %>% 
+  addTiles() %>%
+  addRasterImage(presence.model, colors = colors, opacity = 0.6) %>%
+  addCircleMarkers(data = df_rgbif_blobluto_points,
+                   radius = 5,
+                   weight = 1,
+                   color = "black",
+                   fillColor = ~pal(rec_year),
+                   fillOpacity = 0.7) %>%
+  addMiniMap(position = 'topright',
+             width = 100, 
+             height = 100,
+             toggleDisplay = FALSE) %>%
+  addScaleBar(position = "bottomright")
+```
+
+
+

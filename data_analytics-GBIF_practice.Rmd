@@ -45,6 +45,8 @@ library(maps)
 library(sf)
 library(RColorBrewer)
 library(leaflet.extras)
+library(tiff)
+library(grid)
 
 knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
 ```
@@ -144,4 +146,46 @@ leaflet() %>%
 ```
 
 
+[Google Earth Engine Code](https://code.earthengine.google.com/2a99bd452833682ca8c11a383c11ca49)
+
+
+```{r raster map}
+
+ecoaus <- rast("ecoregion_aus.tif")
+
+leaflet() %>% 
+  addTiles() %>%
+  addRasterImage(presence.model, colors = colors, opacity = 0.6) %>%
+  addRasterImage(ecoaus, opacity = 0.6) %>%
+  addCircleMarkers(data = df_rgbif_blobluto_points,
+                   radius = 5,
+                   weight = 1,
+                   color = "black",
+                   fillColor = ~pal(rec_year),
+                   fillOpacity = 0.7) %>%
+  addMiniMap(position = 'topright',
+             width = 100, 
+             height = 100,
+             toggleDisplay = FALSE) %>%
+  addScaleBar(position = "bottomright")
+
+
+```
+
+```{r tiff}
+
+    tiff_aus <- readTIFF("ecoregion_aus.tif")
+    grid.raster(tiff_aus)
+    
+```
+
+
+
+```{r test}
+
+leaflet() %>% 
+  addTiles() %>%
+  addRasterImage(ecoaus, opacity = 0.6)
+
+```
 
